@@ -1,8 +1,8 @@
-# Optimized Cotton Irrigation
+# Water-Saving and Economic Benefits of Soil Moisture Threshold-based Irrigation Strategy for Cotton in Xinjiang under Climate Change
 
-Process-based modeling (AquaCrop) and data pipelines for preparing weather/soil inputs, calibrating/validating the crop model, running irrigation scenarios, and generating publication-quality figures for Xinjiang cotton.
+This repository provides the main code base supporting the study on soil moisture threshold-based irrigation strategy (SMTIS) for Xinjiang cotton under historical and future climate scenarios. It couples the AquaCrop model with a nonlinear optimization framework to identify stage-specific thresholds and evaluates impacts on irrigation demand, yield, irrigation water productivity, and economic returns across space and time.
 
-This repository contains the core code used in the manuscript to support review and reproducibility.
+In brief, the workflow: (i) prepares gridded weather and soil inputs; (ii) calibrates and validates AquaCrop against observed canopy cover, biomass, and yield; (iii) searches stage-specific thresholds; (iv) runs baseline/deficit/future simulations; and (v) summarizes results and produces publication-ready figures.
 
 ## Repository Structure
 
@@ -26,8 +26,6 @@ This repository contains the core code used in the manuscript to support review 
 - `requirements.txt`: Python dependencies
 - `gee.yaml`, `xinjiangcotton.yml`: Example configuration files
 
-Note: Large figures and manuscript assets are not included. Generate locally via the figure modules if needed.
-
 ## Environment Setup
 
 - Python 3.10 or 3.11 recommended
@@ -37,17 +35,6 @@ Note: Large figures and manuscript assets are not included. Generate locally via
 - External dependencies:
   - AquaCrop (Python) for simulation
   - Google Earth Engine (if using the weather extraction scripts). Ensure proper credentials and project are configured.
-
-## Data Layout
-
-Scripts read inputs from relative paths by default (adjust in code if needed):
-
-- Soil and weather examples (see constants in `model/simulation.py`):
-  - `../data/grid_10km/aquacrop_inputdata/soil/soil.csv`
-  - `../data/grid_10km/aquacrop_inputdata/weather/2000-01-01_2022-12-31/`
-  - `../data/grid_10km/aquacrop_inputdata/weather/2022-01-01_2081-12-31/<GCM>/`
-
-If your layout differs, update the constants such as `SOIL_CSV_PATH`, `WEATHER_BASE_DIR`, `FUTURE_WEATHER_ROOT` accordingly.
 
 ## Running Simulations
 
@@ -65,6 +52,13 @@ Figures are modularized under `src/plot_figs/` and can be run via the orchestrat
 
 Each figure module saves output to the corresponding `figs/` subdirectory.
 
+## Reproducibility
+
+- Provide required input data (soil, weather) under the layout described above.
+- Use the same Python version and dependencies as in `requirements.txt`.
+- Run simulations then generate figures with `src/plot_figures.py` to reproduce paper plots.
+- Randomness is not used in core simulation; runs are deterministic given the same inputs.
+
 ## Typical Workflow
 
 - Optional data acquisition (GEE): `src/weather/gee_extractor.py`, `src/weather/extract_weather.py`
@@ -78,11 +72,17 @@ Each figure module saves output to the corresponding `figs/` subdirectory.
 - Adjust parallelism (workers/memory thresholds) in `model/simulation.py` as needed.
 - This repository does not store large raw/intermediate data.
 
+## License and Copyright
+
+- Code is released under the MIT License (see `LICENSE`).
+- Copyright © 2025 SmartAG@NWAFU.
+- External datasets and third-party assets may have their own licenses. Ensure you have permission to use and redistribute them. Do not commit or redistribute proprietary data.
+
 ## Acknowledgements
 
 - AquaCrop (Python) modeling framework
 - Google Earth Engine (data acquisition components)
 
-## Citation
+## Contact
 
-If you use this code or workflow in your research, please cite the associated manuscript (details to be added after publication).
+For questions about the code or workflow, please open an issue or contact the corresponding authors listed in the manuscript.
