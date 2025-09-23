@@ -14,7 +14,7 @@ from aquacrop.utils import prepare_weather
 from management_scenarios import ManagementScenarios
 from crop_varieties import ZoneCropVarieties
 
-# 配置路径与参数
+# Paths and configuration parameters
 SOIL_CSV_PATH = '../data/grid_10km/aquacrop_inputdata/soil/soil.csv'
 WEATHER_BASE_DIR = '../data/grid_10km/aquacrop_inputdata/weather/2000-01-01_2022-12-31'
 FUTURE_WEATHER_ROOT = '../data/grid_10km/aquacrop_inputdata/weather/2022-01-01_2081-12-31'
@@ -42,10 +42,10 @@ class GlobalData:
         with cls._lock:
             if cls._soil_df is None:
                 if not os.path.exists(SOIL_CSV_PATH):
-                    raise FileNotFoundError(f"土壤数据文件不存在: {SOIL_CSV_PATH}")
+                    raise FileNotFoundError(f"Soil data file not found: {SOIL_CSV_PATH}")
                 cls._soil_df = pd.read_csv(SOIL_CSV_PATH)
                 if cls._soil_df.empty:
-                    raise ValueError("土壤数据为空")
+                    raise ValueError("Soil data is empty")
 
     @classmethod
     def get_soil_df(cls):
@@ -99,7 +99,7 @@ def generate_tasks(valid_ids, scenario_func, weather_base_dir):
                 for scenario in simulator.scenarios:
                     tasks.append((id, simulator.weather, simulator.soil, variety, params, scenario, scenario_func))
         except Exception as e:
-            print(f"任务生成失败 ID {id}: {str(e)}")
+            print(f"Failed to generate tasks for ID {id}: {str(e)}")
             continue
     return tasks
 
@@ -143,7 +143,7 @@ def batch_processor(task_batch, result_collector, error_log):
     try:
         GlobalData.init_global_data()
     except Exception as e:
-        error_log.append(f"进程 {os.getpid()} 初始化失败: {str(e)}")
+        error_log.append(f"Process {os.getpid()} initialization failed: {str(e)}")
         return
 
     with ProcessPoolExecutor(
@@ -152,7 +152,7 @@ def batch_processor(task_batch, result_collector, error_log):
     ) as executor:
         futures = {executor.submit(worker_process, task): task for task in task_batch}
 
-        with tqdm(total=len(futures), desc="批次进度(Pool)", leave=False) as pbar:
+        with tqdm(total=len(futures), desc="Batch progress (Pool)", leave=False) as pbar:
             for future in as_completed(futures):
                 try:
                     result = future.result()
@@ -163,14 +163,14 @@ def batch_processor(task_batch, result_collector, error_log):
                         try:
                             id_value = df['ID'].iloc[0]
                         except Exception as e:
-                            error_log.append(f"提取ID失败: {str(e)}\n数据样例: {df.head().to_dict()}")
+                            error_log.append(f"Failed to extract ID: {str(e)}\nSample data: {df.head().to_dict()}")
                             continue
                         if id_value in result_collector:
                             result_collector[id_value].append(df)
                         else:
-                            error_log.append(f"ID {id_value} 未在 result_collector 中预创建")
+                            error_log.append(f"ID {id_value} not pre-created in result_collector")
                 except Exception as e:
-                    error_log.append(f"Future异常: {str(e)}")
+                    error_log.append(f"Future exception: {str(e)}")
                 finally:
                     pbar.update(1)
 
@@ -224,7 +224,7 @@ def run_simulation(scenario_func, output_dir):
         id_range = range(0, 1337)
         # id_range = list(range(0, 5)) + list(range(1000, 1005))
         valid_ids = [id for id in id_range if not validate_result_file(id, sub_output_dir)]
-        print(f"[{model_name}] 待处理ID数量: {len(valid_ids)}")
+        print(f"[{model_name}] Pending ID count: {len(valid_ids)}")
 
         manager = multiprocessing.Manager()
         result_collector = manager.dict()
@@ -234,7 +234,7 @@ def run_simulation(scenario_func, output_dir):
             result_collector[id] = manager.list()
         tasks = generate_tasks(valid_ids, scenario_func, weather_base_dir)
         np.random.shuffle(tasks)
-        # print(f"[{model_name}] 总任务数量: {len(tasks)}")
+        # print(f"[{model_name}] Total tasks: {len(tasks)}")
         mem_process = multiprocessing.Process(target=memory_guard)
         mem_process.daemon = True
         mem_process.start()
@@ -256,7 +256,7 @@ def run_simulation(scenario_func, output_dir):
         for p in pool_processes:
             p.join()
         save_results(result_collector, error_log, sub_output_dir)
-        print(f"[{model_name}] 处理完成 | 成功: {sum(len(v) for v in result_collector.values())} | 失败: {len(error_log)}")
+        print(f"[{model_name}] Done | Success: {sum(len(v) for v in result_collector.values())} | Failures: {len(error_log)}")
 
 
 if __name__ == "__main__":
@@ -268,7 +268,6 @@ if __name__ == "__main__":
     # run_simulation(scenario_func='_creat_expert_irrigate', output_dir='../results/simulation10km/expert')
     # Future 
     run_simulation(scenario_func='_creat_future_irrigate', output_dir='../results/simulation10km/future')
-
 
 
 

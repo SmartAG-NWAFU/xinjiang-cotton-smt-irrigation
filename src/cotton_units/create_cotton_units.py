@@ -15,7 +15,7 @@ import cbgeo
 from rasterio.transform import Affine
 
 def setup_paths():
-    """设置文件路径"""
+    """Set file paths for cotton unit processing."""
     src_path = os.path.dirname(os.path.abspath(__file__))
     paths = {
         'xinjiang_shp': os.path.join(src_path, '../../data/xinjiang_zones/xinjiang.shp'),
@@ -27,18 +27,18 @@ def setup_paths():
     return paths
 
 def crop_cotton_data(xinjiang_shp, cotton_tif, output_tif):
-    """裁剪棉花数据到新疆边界"""
+    """Clip cotton raster to Xinjiang boundary."""
     xinjiang = gpd.read_file(xinjiang_shp)
     cbgeo.crop_raster(xinjiang, cotton_tif, mask_outside=True, output_path=output_tif)
-    print(f"已裁剪棉花数据到新疆边界: {output_tif}")
+    print(f"Clipped cotton raster to Xinjiang boundary: {output_tif}")
 
 def calculate_percentage(input_tif, output_tif):
-    """计算棉花种植百分比"""
+    """Compute cotton planting percentage per grid cell."""
     with rasterio.open(input_tif) as src:
         data = src.read(1)
         transform = src.transform
 
-    # 计算栅格面积
+    # Compute pixel area (in m^2)
     x_res = transform[0]
     y_res = transform[4]
     pixel_areas = np.zeros_like(data, dtype=float)
@@ -51,13 +51,13 @@ def calculate_percentage(input_tif, output_tif):
             lon_dist = 111320 * abs(x_res) * np.cos(np.radians(lat))
             pixel_areas[row, col] = lat_dist * lon_dist
 
-    # 转换为公顷并计算百分比
+    # Convert to hectares and compute percentages
     pixel_areas_ha = pixel_areas / 10000
     cotton_percentage = np.where(pixel_areas_ha > 0, 
                                (data / pixel_areas_ha) * 100, 
                                0)
 
-    # 保存百分比数据
+    # Save percentage raster
     with rasterio.open(output_tif, 'w',
                       driver='GTiff',
                       height=cotton_percentage.shape[0],
@@ -69,12 +69,12 @@ def calculate_percentage(input_tif, output_tif):
                       nodata=0) as dst:
         dst.write(cotton_percentage, 1)
 
-    print(f"已计算并保存棉花种植百分比: {output_tif}")
-    print(f"最大百分比: {np.max(cotton_percentage):.2f}%")
-    print(f"平均百分比: {np.mean(cotton_percentage[cotton_percentage > 0]):.2f}%")
+    print(f"Saved cotton planting percentages: {output_tif}")
+    print(f"Max percentage: {np.max(cotton_percentage):.2f}%")
+    print(f"Mean percentage (positive): {np.mean(cotton_percentage[cotton_percentage > 0]):.2f}%")
 
 def create_csv(input_tif, output_csv):
-    """创建包含经纬度和值的CSV文件"""
+    """Create a CSV with lon/lat/value columns from raster."""
     with rasterio.open(input_tif) as src:
         data = src.read(1)
         transform = src.transform
@@ -101,13 +101,13 @@ def create_csv(input_tif, output_csv):
     })
 
     df.to_csv(output_csv, index=False)
-    print(f"已创建CSV文件: {output_csv}")
-    print(f"总行数: {len(df)}")
-    print("\n数据预览:")
+    print(f"Created CSV file: {output_csv}")
+    print(f"Total rows: {len(df)}")
+    print("\nPreview:")
     print(df.head())
 
 def plot_distribution(input_tif, title):
-    """绘制数据分布直方图"""
+    """Plot histogram of data distribution."""
     with rasterio.open(input_tif) as src:
         data = src.read(1)
 
@@ -121,22 +121,21 @@ def plot_distribution(input_tif, title):
     plt.show()
 
 def main():
-    """主函数"""
-    # 设置路径
+    """Main entry point."""
+    # Configure paths
     paths = setup_paths()
 
-    # 1. 裁剪棉花数据
+    # 1. Clip cotton data
     # crop_cotton_data(paths['xinjiang_shp'], paths['cotton_tif'], paths['xinjiang_cotton_tif'])
 
-    # 2. 计算百分比并保存
+    # 2. Compute percentage and save
     # calculate_percentage(paths['xinjiang_cotton_tif'], paths['xinjiang_cotton_percentage_tif'])
 
-    # 3. 创建CSV文件
+    # 3. Create CSV file
     create_csv(paths['xinjiang_cotton_percentage_tif'], paths['xinjiang_cotton_csv'])
 
-    # 4. 绘制分布图
+    # 4. Plot distribution
     # plot_distribution(paths['xinjiang_cotton_percentage_tif'], 'Distribution of Cotton Percentage')
 
 if __name__ == "__main__":
     main()
-

@@ -7,7 +7,7 @@ from pyproj import CRS, Transformer
 from pykrige.ok import OrdinaryKriging
 
 # ----------------------------
-# 1) 读取站点 + SMT
+# 1) Read sites + SMT values
 # ----------------------------
 def prepare_sites_optimized_smts():
     experiment_sites = pd.read_csv('../data/xinjiang_zones/experimental_sites.csv')
@@ -21,28 +21,28 @@ def prepare_sites_optimized_smts():
     return df[['ID', 'lon', 'lat', 'SMT1', 'SMT2', 'SMT3', 'SMT4']]
 
 # ----------------------------
-# 2) 读取底图（用于网格坐标、CRS、掩膜等）
+# 2) Read base raster (grid, CRS, mask, etc.)
 # ----------------------------
 def load_raster_meta():
     tiff_path = '../data/study_area/xinjiang_cotton_percentage.tif'
     with rasterio.open(tiff_path) as src:
-        band = src.read(1)  # 数值本身（仅用于行列尺寸/检查）
+        band = src.read(1)  # Values (only for shape/checks)
         transform = src.transform
         crs = src.crs
         height, width = src.height, src.width
-        nodata = src.nodata  # 这里是 -1.0
-        # 使用数据集 mask（0=无效，>0=有效）
+        nodata = src.nodata  # Here -1.0
+        # Use dataset mask (0=invalid, >0=valid)
         # mask = src.read_masks(1)  # uint8
         mask = band > 0
     return band, transform, crs, height, width, nodata, mask
 
 # ----------------------------
-# 3) 可选：重投影站点坐标 -> 底图 CRS
+# 3) Optional: reproject site coords -> raster CRS
 # ----------------------------
 def reproject_points_if_needed(sites_df, target_crs):
-    """假设站点 lon/lat 是 WGS84，经检查如果底图不是 EPSG:4326，就重投影。"""
+    """Assume site lon/lat are WGS84. If base raster CRS is not EPSG:4326, reproject."""
     if target_crs is None:
-        # 保险起见，直接当作经纬度用
+        # Fallback: treat as lon/lat
         return sites_df['lon'].values, sites_df['lat'].values
 
     target = CRS.from_user_input(target_crs)
@@ -56,24 +56,24 @@ def reproject_points_if_needed(sites_df, target_crs):
     return np.array(x), np.array(y)
 
 # ----------------------------
-# 4) 生成网格坐标（x 向右，y 向下；注意 PyKrige 需要升序）
+# 4) Build grid axes (x→right, y→down; PyKrige needs ascending)
 # ----------------------------
 def build_grid_axes(transform, width, height):
     cols = np.arange(width)
     rows = np.arange(height)
 
-    # x 方向（列）——取第 0 行的所有列中心点的 x
+    # x-axis (columns): x of row 0, for all columns
     x_coords, _ = xy(transform, np.zeros_like(cols), cols)
-    x_coords = np.array(x_coords)  # 1D, 通常升序
+    x_coords = np.array(x_coords)  # 1D, usually ascending
 
-    # y 方向（行）——取第 0 列的所有行中心点的 y
+    # y-axis (rows): y of column 0, for all rows
     _, y_coords = xy(transform, rows, np.zeros_like(rows))
-    y_coords = np.array(y_coords)  # 注意北上的栅格通常是降序（由北到南）
+    y_coords = np.array(y_coords)  # North-up rasters are often descending (N→S)
 
-    # PyKrige 需要升序；若 y_coords 是降序，则升序排序并记录需要翻转
+    # Ensure ascending for PyKrige; if descending, reverse and mark flip
     y_ascending = np.all(np.diff(y_coords) > 0)
     if not y_ascending:
-        y_coords_sorted = y_coords[::-1]  # 升序
+        y_coords_sorted = y_coords[::-1]  # ascending
         flip_y = True
     else:
         y_coords_sorted = y_coords
@@ -82,43 +82,43 @@ def build_grid_axes(transform, width, height):
     return x_coords, y_coords_sorted, flip_y
 
 # ----------------------------
-# 5) Kriging + 掩膜 + 写出
+# 5) Kriging + mask + write output
 # ----------------------------
 def krige_and_save_all_bands(sites, band, transform, crs, height, width, nodata, mask, out_dir):
     os.makedirs(out_dir, exist_ok=True)
 
-    # 站点坐标重投影到底图 CRS
+    # Reproject site coords to raster CRS
     x_pts, y_pts = reproject_points_if_needed(sites, crs)
 
-    # 生成网格轴（确保传入 PyKrige 的是升序）
+    # Build grid axes (ensure ascending for PyKrige)
     gridx, gridy_sorted, flip_y = build_grid_axes(transform, width, height)
 
-    # 要处理的字段
+    # Fields to process
     fields = ['SMT1', 'SMT2', 'SMT3', 'SMT4']
 
     for fld in fields:
-        print(f'>>> 处理 {fld} ...')
+        print(f'>>> Processing {fld} ...')
         z_vals = sites[fld].values.astype(float)
 
-        # 建立 OK；变差函数你也可尝试 'spherical' / 'exponential' / 'gaussian'
+        # Ordinary Kriging; you may test other variograms 'spherical'/'exponential'/'gaussian'
         OK = OrdinaryKriging(
             x_pts, y_pts, z_vals,
             variogram_model='spherical',
             verbose=False, enable_plotting=False
         )
 
-        # 执行插值（注意 gridy_sorted 是升序）
+        # Interpolate (gridy_sorted is ascending)
         z_interp, _ = OK.execute('grid', gridx, gridy_sorted)  # shape: (len(gridy), len(gridx))
 
-        # 若我们把 y 反向过给 kriging，需要翻转回来，使之与原始行顺序一致（top->down）
+        # If y was reversed for kriging, flip back to top→down order
         if flip_y:
             z_interp = z_interp[::-1, :]
 
-        # 使用数据集 mask 掩膜：mask==0 的位置是无效区
+        # Apply dataset mask: mask==0 indicates invalid region
         out = np.full((height, width), nodata, dtype='float32')
         out[mask] = z_interp[mask].astype('float32')
 
-        # 写 GeoTIFF，保留 nodata 标记
+        # Write GeoTIFF with nodata preserved
         out_path = os.path.join(out_dir, f'{fld}.tif')
         profile = {
             'driver': 'GTiff',
@@ -134,16 +134,15 @@ def krige_and_save_all_bands(sites, band, transform, crs, height, width, nodata,
         with rasterio.open(out_path, 'w', **profile) as dst:
             dst.write(out, 1)
 
-        print(f'>>> {fld} 完成：{out_path}')
+        print(f'>>> {fld} done: {out_path}')
 
 def create_summary_csv(smt_files, output_csv):
-    """
-    读取4个SMT插值后的tif文件，生成一个CSV文件，包含ID、经纬度、SMT1-4
-    smt_files: dict, {'SMT1': 'SMT1.tif', 'SMT2': 'SMT2.tif', ...}
+    """Read the 4 SMT raster files and generate a CSV with ID, lon, lat, SMT1-4.
+    smt_files: dict, e.g., {'SMT1': 'SMT1.tif', 'SMT2': 'SMT2.tif', ...}
     """
     data_dict = {}
 
-    # 先读取第一个栅格作为基准
+    # Use the first raster as the base
     first_key = list(smt_files.keys())[0]
     with rasterio.open(smt_files[first_key]) as src:
         transform = src.transform
@@ -163,7 +162,7 @@ def create_summary_csv(smt_files, output_csv):
         data_dict['lat'] = lat_list
         data_dict[first_key] = data.flatten().round(2)
 
-    # 依次读取其他SMT栅格
+    # Read remaining SMT rasters
     for key, filepath in smt_files.items():
         if key == first_key:
             continue
@@ -171,16 +170,16 @@ def create_summary_csv(smt_files, output_csv):
             data = src.read(1)
             data_dict[key] = data.flatten().round(2)
 
-    # 生成DataFrame并保存
+    # Build DataFrame and save
     df = pd.DataFrame(data_dict)
 
     df = df[(df['SMT1'] > 0) & (df['SMT2'] > 0) & (df['SMT3'] > 0) & (df['SMT4'] > 0)].reset_index(drop=True)
-    df['ID'] = df.index  # 重新生成从 0 开始的 ID
+    df['ID'] = df.index  # Re-generate ID starting from 0
 
     df.to_csv(output_csv, index=False)
-    print(f"已创建CSV文件: {output_csv}")
-    print(f"总行数: {len(df)}")
-    print("\n数据预览:")
+    print(f"Created CSV file: {output_csv}")
+    print(f"Total rows: {len(df)}")
+    print("\nPreview:")
     print(df.head())
 
 
