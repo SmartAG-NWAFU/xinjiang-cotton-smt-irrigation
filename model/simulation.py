@@ -264,8 +264,6 @@ if __name__ == "__main__":
     # run_simulation(scenario_func='_creat_baseline_irrigate', output_dir='../results/simulation10km/baseline')
     # Deficit 
     # run_simulation(scenario_func='_creat_deficit_irrigate', output_dir='../results/simulation10km/deficit')
-    # Expert    
-    # run_simulation(scenario_func='_creat_expert_irrigate', output_dir='../results/simulation10km/expert')
     # Future 
     run_simulation(scenario_func='_creat_future_irrigate', output_dir='../results/simulation10km/future')
 

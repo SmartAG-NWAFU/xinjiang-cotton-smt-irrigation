@@ -4,67 +4,108 @@ This repository provides the main code base supporting the study on soil moistur
 
 In brief, the workflow: (i) prepares gridded weather and soil inputs; (ii) calibrates and validates AquaCrop against observed canopy cover, biomass, and yield; (iii) searches stage-specific thresholds; (iv) runs baseline/deficit/future simulations; and (v) summarizes results and produces publication-ready figures.
 
+## What is included vs. expected
+
+This repo includes pipeline wiring, utilities, and a small set of reference geodata. Full reproduction requires additional internal modules and large datasets that are not tracked here.
+
+Missing modules (expected on PYTHONPATH):
+- `gee_extractor.py` (GEE helper used by soil/dem/weather extraction)
+- `management_scenarios.py` and `crop_varieties.py` (AquaCrop management and cultivar parameters)
+- `src/plot_figs/plot_all_figures.py` (legacy figure implementation used by wrappers)
+
 ## Repository Structure
 
-- `src/`
-  - `weather/`: Weather preparation and analysis
-    - `extract_weather.py`, `future_weather_extract.py`, `gee_extractor.py`
-    - `process_era5_grid_weather_data.py`, `prepare_weather_data.py`
-    - `calculate_weather_soil_correlation.py`, `climate_change_weather_trends.py`
-  - `soil/`: Soil data preparation and extraction
-    - `prepare_soil_data.py`, `extract_soil.py`, `extract_dem.py`
-  - `cotton_units/`: Cotton unit grid creation and labelling
-    - `create_cotton_units.py`, `set_cotton_units_labels.py`
-  - `plot_figs/`: One module per figure; `plot_all_figures.py` holds legacy implementations used by wrappers
-  - `plot_figures.py`: Orchestrator to run figures from the CLI
 - `model/`
-  - `simulation.py`: Main simulation driver (baseline/deficit/future, etc.)
-  - `deficit_thresholds_Kriging.py`: Interpolate optimized thresholds to grid
-  - `metrics.py`: Shared metrics (e.g., GDD)
-- `utils/`: Utilities such as `plot_map_tools.py`, `csv_convert_raster.py`, `lookup_id_zones.py`
-- `data/`: Data placeholders (not tracked for large files)
-- `requirements.txt`: Python dependencies
-- `gee.yaml`, `xinjiangcotton.yml`: Example configuration files
+  - `simulation.py`: AquaCrop batch runner (baseline/deficit/future)
+- `src/`
+  - `cotton_units/`: Build cotton unit grid and zone labels
+  - `soil/`: GEE soil/dem extraction and soil CSV preparation
+  - `weather/`: CMIP6 extraction and climate trend summary
+  - `plot_figs/`: Figure wrappers that call `PlotAllfigures`
+  - `plot_figures.py`: CLI entry to run figure wrappers
+- `utils/`: Plot helpers, raster conversion, and zone lookup scripts
+- `data/`: Reference shapefiles and zone raster (large inputs not tracked)
+- `fig/`: Sample output figure(s)
+- `requirements.txt`, `gee.yaml`, `xinjiangcotton.yml`: Dependency specs
 
 ## Environment Setup
 
-- Python 3.10 or 3.11 recommended
-- Create a virtual environment and install dependencies:
+- Python 3.10+ recommended
+- Minimal pip install:
   - `python -m venv .venv && source .venv/bin/activate`
   - `pip install -r requirements.txt`
-- External dependencies:
-  - AquaCrop (Python) for simulation
-  - Google Earth Engine (if using the weather extraction scripts). Ensure proper credentials and project are configured.
+- Additional packages used by specific scripts:
+  - `aquacrop`, `matplotlib`, `geopandas`, `rasterio`, `cartopy`, `cbgeo`
+- Conda env snapshots used during development:
+  - `conda env create -f xinjiangcotton.yml`
+  - `conda env create -f gee.yaml`
+- GEE-based scripts require Earth Engine authentication and a local `gee_extractor.py`.
+
+## Expected Data Layout
+
+Most scripts use hard-coded relative paths. The expected layout is:
+
+```
+data/
+  grid_10km/
+    xinjiang_cotton_units.csv
+    soil/
+      sand_mean.csv
+      silt_mean.csv
+      clay_mean.csv
+      soc_mean.csv
+      bdod_mean.csv
+    aquacrop_inputdata/
+      soil/soil.csv
+      weather/2000-01-01_2022-12-31/*.txt
+      weather/2022-01-01_2081-12-31/<gcm_model>/*.txt
+      units_labels.csv
+  xinjiang_zones/
+    xinjiang.shp
+    xinjiang_zones.tif
+  study_area/
+    spam2020_v1r0_global_A_COTT_A.tif
+```
+
+## Data Preparation
+
+- Cotton units: `python src/cotton_units/create_cotton_units.py`
+- Zone labels: `python src/cotton_units/set_cotton_units_labels.py`
+- Soil extraction/prep: `python src/soil/extract_soil.py`, then `python src/soil/prepare_soil_data.py`
+- DEM extraction: `python src/soil/extract_dem.py`
+- Future weather extraction (CMIP6): `python src/weather/future_weather_extract.py`
+- Climate trend summary: `python src/weather/climate_change_weather_trends.py`
 
 ## Running Simulations
 
 - Configure input paths and scenario parameters in `model/simulation.py`.
-- Execute the simulation (examples within the file show how to run baseline/deficit/future scenarios).
+- Provide `management_scenarios.py` and `crop_varieties.py` on `PYTHONPATH`.
+- Run: `python model/simulation.py` (edit the scenario in `__main__`).
+- Tune `MAX_WORKERS_PER_POOL`, `TOTAL_POOLS`, and `MEMORY_THRESHOLD` for your hardware.
 
 ## Generating Figures
 
-Figures are modularized under `src/plot_figs/` and can be run via the orchestrator:
+Figure wrappers live under `src/plot_figs/` and are driven by the orchestrator, but they require the legacy implementation in `src/plot_figs/plot_all_figures.py` (not tracked here):
 
 - Single figure: `python -m src.plot_figures fig1`
-- Main figures (fig1–fig6): `python -m src.plot_figures main`
-- Supplementary figures (S1–S4): `python -m src.plot_figures supp`
+- Main figures (fig1-fig6): `python -m src.plot_figures main`
+- Supplementary figures (s1-s4): `python -m src.plot_figures supp`
 - All: `python -m src.plot_figures all`
-
-Each figure module saves output to the corresponding `figs/` subdirectory.
 
 ## Reproducibility
 
 - Provide required input data (soil, weather) under the layout described above.
-- Use the same Python version and dependencies as in `requirements.txt`.
+- Use the same Python version and dependencies as in `requirements.txt` or the conda env files.
 - Run simulations then generate figures with `src/plot_figures.py` to reproduce paper plots.
 - Randomness is not used in core simulation; runs are deterministic given the same inputs.
 
 ## Typical Workflow
 
-- Optional data acquisition (GEE): `src/weather/gee_extractor.py`, `src/weather/extract_weather.py`
-- Weather/soil preparation: `src/weather/*`, `src/soil/*`
+- Cotton unit grid: `src/cotton_units/create_cotton_units.py`, `src/cotton_units/set_cotton_units_labels.py`
+- Optional data acquisition (GEE): `src/soil/extract_soil.py`, `src/soil/extract_dem.py`, `src/weather/future_weather_extract.py`
+- Weather/soil preparation: `src/soil/prepare_soil_data.py`, `src/weather/climate_change_weather_trends.py`
 - Simulation: `model/simulation.py`
-- Analysis and visualization: `model/deficit_thresholds_Kriging.py`, `src/plot_figs/*`, `utils/plot_map_tools.py`
+- Analysis and visualization: `src/plot_figs/*`, `utils/plot_map_tools.py`, `utils/csv_convert_raster.py`
 
 ## Notes
 
