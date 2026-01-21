@@ -1,4 +1,4 @@
-# Water-Saving and Economic Benefits of Soil Moisture Threshold-based Irrigation Strategy for Cotton in Xinjiang under Climate Change
+# Water-Saving and Economic Benefits of A Soil Moisture Threshold-based Irrigation Strategy for Cotton in Xinjiang under Climate Change
 
 This repository provides the main code base supporting the study on soil moisture threshold-based irrigation strategy (SMTIS) for Xinjiang cotton under historical and future climate scenarios. It couples the AquaCrop model with a nonlinear optimization framework to identify stage-specific thresholds and evaluates impacts on irrigation demand, yield, irrigation water productivity, and economic returns across space and time.
 
